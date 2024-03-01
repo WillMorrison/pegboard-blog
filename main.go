@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/WillMorrison/pegboard-blog/grid"
+	"github.com/WillMorrison/pegboard-blog/placer"
+	"github.com/WillMorrison/pegboard-blog/sets"
 	"github.com/WillMorrison/pegboard-blog/solver"
 )
 
@@ -18,9 +20,12 @@ func main() {
 		fmt.Println("No solutions exist for 15x15 or larger grids. Not searching.")
 		return
 	}
-
 	g := grid.Grid{Size: uint8(*size)}
-	s := solver.NewSingleThreadedSolver(g, solver.EmptyStartingPoint)
+
+	s := solver.SingleThreadedSolver{
+		StartingPointsProvider: solver.SingleOctantStartingPoints,
+		StonePlacerConstructor: placer.OrderedStonePlacerProvider{sets.NewMapSeparationSet},
+	}
 	startTime := time.Now()
 	solution, err := s.Solve(g)
 	duration := time.Since(startTime)
