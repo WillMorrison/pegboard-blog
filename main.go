@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"time"
 
@@ -9,7 +10,16 @@ import (
 )
 
 func main() {
-	g := grid.Grid{Size: 8}
+	size := flag.Uint("size", 7, "the side length of square grid to search for solutions on")
+
+	flag.Parse()
+
+	if *size > grid.MaxGridSize {
+		fmt.Println("No solutions exist for 15x15 or larger grids. Not searching.")
+		return
+	}
+
+	g := grid.Grid{Size: uint8(*size)}
 	s := solver.NewSingleThreadedSolver(g, solver.EmptyStartingPoint)
 	startTime := time.Now()
 	solution, err := s.Solve(g)
