@@ -28,6 +28,10 @@ func IsInBounds(g Grid, p Point) bool {
 	return p.Row < g.Size && p.Col < g.Size
 }
 
+func LessThan(p1, p2 Point) bool {
+	return p1.Row < p2.Row || p1.Row == p2.Row && p1.Col < p2.Col
+}
+
 // Placements represents a set of stones placed on the grid
 type Placements []Point
 

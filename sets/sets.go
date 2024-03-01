@@ -28,27 +28,75 @@ func NewMapSeparationSet(p grid.Placements) SeparationSet {
 	return s
 }
 
-func (mss mapSeparationSet) Has(sep uint16) bool {
-	return mss[sep]
+func (ss mapSeparationSet) Has(sep uint16) bool {
+	return ss[sep]
 }
 
-func (mss mapSeparationSet) Add(sep uint16) {
-	mss[sep] = true
+func (ss mapSeparationSet) Add(sep uint16) {
+	ss[sep] = true
 }
 
-func (mss mapSeparationSet) Copy() SeparationSet {
+func (ss mapSeparationSet) Copy() SeparationSet {
 	newSet := make(mapSeparationSet)
-	for s := range mss {
+	for s := range ss {
 		newSet[s] = true
 	}
 	return newSet
 }
 
-func (mss mapSeparationSet) String() string {
-	keys := make([]uint16, 0, len(mss))
-	for k := range mss {
+func (ss mapSeparationSet) String() string {
+	keys := make([]uint16, 0, len(ss))
+	for k := range ss {
 		keys = append(keys, k)
 	}
 	return fmt.Sprint(keys)
+
+}
+
+type PointSet interface {
+	Has(grid.Point) bool
+	Add(grid.Point)
+	Copy() PointSet
+	Elements() grid.Placements
+}
+
+type PointSetConstructor func(grid.Placements) PointSet
+
+type mapPointSet map[grid.Point]bool
+
+func NewMapPointSet(points grid.Placements) PointSet {
+	ps := make(mapPointSet)
+	for _, p := range points {
+		ps[p] = true
+	}
+	return ps
+}
+
+func (ps mapPointSet) Has(p grid.Point) bool {
+	return ps[p]
+}
+
+func (ps mapPointSet) Add(p grid.Point) {
+	ps[p] = true
+}
+
+func (ps mapPointSet) Copy() PointSet {
+	newSet := make(mapPointSet)
+	for p := range ps {
+		newSet[p] = true
+	}
+	return newSet
+}
+
+func (ps mapPointSet) Elements() grid.Placements {
+	points := make(grid.Placements, 0, len(ps))
+	for p := range ps {
+		points = append(points, p)
+	}
+	return points
+}
+
+func (ps mapPointSet) String() string {
+	return fmt.Sprint(ps.Elements())
 
 }

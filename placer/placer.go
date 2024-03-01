@@ -43,20 +43,8 @@ type orderedStonePlacer struct {
 	nextStone   grid.Point
 }
 
-type OrderedStonePlacerProvider struct {
-	SeparationSetConstructor sets.SeparationSetConstructor
-}
-
-func (ospp OrderedStonePlacerProvider) New(g grid.Grid, p grid.Placements) StonePlacer {
-	nextStone := grid.Point{}
-	if len(p) > 0 {
-		nextStone = advanceStone(g, p[len(p)-1])
-	}
-	return &orderedStonePlacer{grid: g, stones: p, separations: ospp.SeparationSetConstructor(p), nextStone: nextStone}
-}
-
 func (sp *orderedStonePlacer) Place() (StonePlacer, error) {
-	defer func(){sp.nextStone = advanceStone(sp.grid, sp.nextStone)}()
+	defer func() { sp.nextStone = advanceStone(sp.grid, sp.nextStone) }()
 
 	// Check that placing the next stone doesn't result in duplicate separations
 	separations := sp.separations.Copy()
@@ -86,4 +74,76 @@ func (sp orderedStonePlacer) Grid() grid.Grid {
 
 func (sp orderedStonePlacer) Placements() grid.Placements {
 	return sp.stones
+}
+
+type OrderedStonePlacerProvider struct {
+	SeparationSetConstructor sets.SeparationSetConstructor
+}
+
+func (spp OrderedStonePlacerProvider) New(g grid.Grid, p grid.Placements) StonePlacer {
+	nextStone := grid.Point{}
+	if len(p) > 0 {
+		nextStone = advanceStone(g, p[len(p)-1])
+	}
+	return &orderedStonePlacer{grid: g, stones: p, separations: spp.SeparationSetConstructor(p), nextStone: nextStone}
+}
+
+// unorderedStonePlacer places stones in any unoccupied spot on the board
+type unorderedStonePlacer struct {
+	grid        grid.Grid
+	stones      sets.PointSet
+	separations sets.SeparationSet
+	nextStone   grid.Point
+}
+
+// advance moves nextStone to a point that is not already occupied
+func (sp *unorderedStonePlacer) advance() {
+	sp.nextStone = advanceStone(sp.grid, sp.nextStone)
+	for sp.stones.Has(sp.nextStone) {
+		sp.nextStone = advanceStone(sp.grid, sp.nextStone)
+	}
+}
+
+func (sp *unorderedStonePlacer) Place() (StonePlacer, error) {
+	if sp.stones.Has(sp.nextStone) {
+		sp.advance()
+	}
+	defer sp.advance()
+
+	// Check that placing the next stone doesn't result in duplicate separations
+	separations := sp.separations.Copy()
+	for _, p := range sp.stones.Elements() {
+		s := grid.Separation(sp.nextStone, p)
+		if separations.Has(s) {
+			return sp, fmt.Errorf("cannot place at %s, unique distance constraint violated with stone at %s", sp.nextStone, p)
+		}
+		separations.Add(s)
+	}
+
+	// Add the stone to a fresh copy of the placements
+	newStones := sp.stones.Copy()
+	newStones.Add(sp.nextStone)
+
+	return &unorderedStonePlacer{sp.grid, newStones, separations, grid.Point{}}, nil
+}
+
+func (sp unorderedStonePlacer) Done() bool {
+	return !grid.IsInBounds(sp.grid, sp.nextStone)
+}
+
+func (sp unorderedStonePlacer) Grid() grid.Grid {
+	return sp.grid
+}
+
+func (sp unorderedStonePlacer) Placements() grid.Placements {
+	return sp.stones.Elements()
+}
+
+type UnorderedStonePlacerProvider struct {
+	SeparationSetConstructor sets.SeparationSetConstructor
+	PointSetConstructor      sets.PointSetConstructor
+}
+
+func (spp UnorderedStonePlacerProvider) New(g grid.Grid, p grid.Placements) StonePlacer {
+	return &unorderedStonePlacer{grid: g, stones: spp.PointSetConstructor(p), separations: spp.SeparationSetConstructor(p), nextStone: grid.Point{}}
 }

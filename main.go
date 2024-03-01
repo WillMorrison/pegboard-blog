@@ -9,10 +9,25 @@ import (
 	"github.com/WillMorrison/pegboard-blog/placer"
 	"github.com/WillMorrison/pegboard-blog/sets"
 	"github.com/WillMorrison/pegboard-blog/solver"
+	"github.com/hashicorp/packer/command/enumflag"
+)
+
+const (
+	UnorderedStonePlacer = "unordered"
+	OrderedStonePlacer   = "ordered"
+
+	EmptyStartingPoint         = "empty_grid"
+	SingleOctantStartingPoints = "first_octant"
 )
 
 func main() {
 	size := flag.Uint("size", 7, "the side length of square grid to search for solutions on")
+
+	stonePlacer := OrderedStonePlacer
+	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer), "placer", "StonePlacer implementation to use")
+
+	startingPoint := SingleOctantStartingPoints
+	flag.Var(enumflag.New(&startingPoint, EmptyStartingPoint, SingleOctantStartingPoints), "start", "Starting point for the search")
 
 	flag.Parse()
 
@@ -22,9 +37,28 @@ func main() {
 	}
 	g := grid.Grid{Size: uint8(*size)}
 
+	var startingPointsProvider solver.StartingPointsProvider
+	switch startingPoint {
+	case EmptyStartingPoint:
+		startingPointsProvider = solver.EmptyStartingPoint
+	case SingleOctantStartingPoints:
+		startingPointsProvider = solver.SingleOctantStartingPoints
+	}
+
+	var stonePlacerConstructor placer.StonePlacerConstructor
+	switch stonePlacer {
+	case UnorderedStonePlacer:
+		stonePlacerConstructor = placer.UnorderedStonePlacerProvider{
+			SeparationSetConstructor: sets.NewMapSeparationSet,
+			PointSetConstructor:      sets.NewMapPointSet}
+	case OrderedStonePlacer:
+		stonePlacerConstructor = placer.OrderedStonePlacerProvider{
+			SeparationSetConstructor: sets.NewMapSeparationSet}
+	}
+
 	s := solver.SingleThreadedSolver{
-		StartingPointsProvider: solver.SingleOctantStartingPoints,
-		StonePlacerConstructor: placer.OrderedStonePlacerProvider{sets.NewMapSeparationSet},
+		StartingPointsProvider: startingPointsProvider,
+		StonePlacerConstructor: stonePlacerConstructor,
 	}
 	startTime := time.Now()
 	solution, err := s.Solve(g)
