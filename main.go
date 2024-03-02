@@ -67,6 +67,7 @@ func main() {
 		fmt.Printf("Search ended with no solution found for %+v in %v\n", g, duration)
 		return
 	}
+	solution.Sort()
 	if grid.IsValidSolution(g, solution) {
 		fmt.Printf("Solution found for %+v in %v: %v\n", g, duration, solution)
 	} else {

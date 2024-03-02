@@ -3,6 +3,7 @@ package grid
 
 import (
 	"fmt"
+	"slices"
 )
 
 // Grids larger than 14x14 are known to have no solutions
@@ -34,6 +35,19 @@ func LessThan(p1, p2 Point) bool {
 
 // Placements represents a set of stones placed on the grid
 type Placements []Point
+
+// Sort sorts the Points in place.
+func (p Placements) Sort() {
+	slices.SortFunc[Placements](p, func(p1, p2 Point) int {
+		if LessThan(p1, p2) {
+			return -1
+		} else if LessThan(p2, p1) {
+			return 1
+		} else {
+			return 0
+		}
+	})
+}
 
 // Separation is the squared distance between 2 grid points
 func Separation(p1, p2 Point) uint16 {
