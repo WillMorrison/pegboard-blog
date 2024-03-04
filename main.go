@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/WillMorrison/pegboard-blog/grid"
@@ -23,6 +26,8 @@ const (
 func main() {
 	size := flag.Uint("size", 7, "the side length of square grid to search for solutions on")
 
+	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+
 	stonePlacer := OrderedStonePlacer
 	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer), "placer", "StonePlacer implementation to use")
 
@@ -32,8 +37,7 @@ func main() {
 	flag.Parse()
 
 	if *size > grid.MaxGridSize {
-		fmt.Println("No solutions exist for 15x15 or larger grids. Not searching.")
-		return
+		log.Fatal("No solutions exist for 15x15 or larger grids. Not searching.")
 	}
 	g := grid.Grid{Size: uint8(*size)}
 
@@ -60,6 +64,16 @@ func main() {
 		StartingPointsProvider: startingPointsProvider,
 		StonePlacerConstructor: stonePlacerConstructor,
 	}
+
+	if *cpuprofile != "" {
+        f, err := os.Create(*cpuprofile)
+        if err != nil {
+            log.Fatal(err)
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
+
 	startTime := time.Now()
 	solution, err := s.Solve(g)
 	duration := time.Since(startTime)
