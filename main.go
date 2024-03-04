@@ -21,12 +21,18 @@ const (
 
 	EmptyStartingPoint         = "empty_grid"
 	SingleOctantStartingPoints = "first_octant"
+
+	MapSeparationSet = "map"
+	BitSeparationSet = "array"
 )
 
 func main() {
 	size := flag.Uint("size", 7, "the side length of square grid to search for solutions on")
 
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+
+	separationSet := BitSeparationSet
+	flag.Var(enumflag.New(&separationSet, MapSeparationSet, BitSeparationSet), "separation_set", "SeparationSet implementation to use")
 
 	stonePlacer := OrderedStonePlacer
 	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer), "placer", "StonePlacer implementation to use")
@@ -49,15 +55,23 @@ func main() {
 		startingPointsProvider = solver.SingleOctantStartingPoints
 	}
 
+	var separationSetConstructor sets.SeparationSetConstructor
+	switch separationSet {
+	case MapSeparationSet:
+		separationSetConstructor = sets.NewMapSeparationSet
+	case BitSeparationSet:
+		separationSetConstructor = sets.NewBitSeparationSet
+	}
+
 	var stonePlacerConstructor placer.StonePlacerConstructor
 	switch stonePlacer {
 	case UnorderedStonePlacer:
 		stonePlacerConstructor = placer.UnorderedStonePlacerProvider{
-			SeparationSetConstructor: sets.NewMapSeparationSet,
+			SeparationSetConstructor: separationSetConstructor,
 			PointSetConstructor:      sets.NewMapPointSet}
 	case OrderedStonePlacer:
 		stonePlacerConstructor = placer.OrderedStonePlacerProvider{
-			SeparationSetConstructor: sets.NewMapSeparationSet}
+			SeparationSetConstructor: separationSetConstructor}
 	}
 
 	s := solver.SingleThreadedSolver{
@@ -66,13 +80,13 @@ func main() {
 	}
 
 	if *cpuprofile != "" {
-        f, err := os.Create(*cpuprofile)
-        if err != nil {
-            log.Fatal(err)
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
-    }
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	startTime := time.Now()
 	solution, err := s.Solve(g)

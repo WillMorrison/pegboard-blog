@@ -10,6 +10,7 @@ type SeparationSet interface {
 	Has(uint16) bool
 	Add(uint16)
 	Copy() SeparationSet
+	Elements() []uint16
 }
 
 type SeparationSetConstructor func(grid.Placements) SeparationSet
@@ -44,13 +45,50 @@ func (ss mapSeparationSet) Copy() SeparationSet {
 	return newSet
 }
 
-func (ss mapSeparationSet) String() string {
+func (ss mapSeparationSet) Elements() []uint16 {
 	keys := make([]uint16, 0, len(ss))
 	for k := range ss {
 		keys = append(keys, k)
 	}
-	return fmt.Sprint(keys)
+	return keys
+}
 
+// A set representing membership as bits. Has up to 2*14^2 = 392 members, which is sufficient for separations on a max sized grid.
+// Separation element ordering is little endian across the whole array.
+type bitSeparationSet [49]byte 
+
+func NewBitSeparationSet(p grid.Placements) SeparationSet {
+	var s bitSeparationSet
+	for i, p1 := range p {
+		for j := i + 1; j < len(p); j++ {
+			p2 := p[j]
+			s.Add(grid.Separation(p1, p2))
+		}
+	}
+	return &s
+}
+
+func (ss bitSeparationSet) Has(sep uint16) bool {
+	return ss[sep>>3]&(0x80>>(sep&0x7)) != 0
+}
+
+func (ss *bitSeparationSet) Add(sep uint16) {
+	ss[sep>>3] |= 0x80 >> (sep & 0x7)
+}
+
+func (ss *bitSeparationSet) Copy() SeparationSet {
+	var newSet bitSeparationSet = *ss
+	return &newSet
+}
+
+func (ss bitSeparationSet) Elements() []uint16 {
+	keys := make([]uint16, 0, len(ss))
+	for sep := uint16(0); sep < uint16(len(ss)*8); sep++ {
+		if ss.Has(sep) {
+			keys = append(keys, sep)
+		}
+	}
+	return keys
 }
 
 type PointSet interface {
@@ -98,5 +136,4 @@ func (ps mapPointSet) Elements() grid.Placements {
 
 func (ps mapPointSet) String() string {
 	return fmt.Sprint(ps.Elements())
-
 }
