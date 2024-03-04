@@ -7,6 +7,10 @@ import (
 	"github.com/WillMorrison/pegboard-blog/sets"
 )
 
+var (
+	errDistanceConstraintViolated = fmt.Errorf("cannot place stone, unique distance constraint would be violated")
+)
+
 type StonePlacer interface {
 	// Place attempts to place a stone. If placement is successful, it returns a new StonePlacer, otherwise it returns an error.
 	Place() (StonePlacer, error)
@@ -51,7 +55,7 @@ func (sp *orderedStonePlacer) Place() (StonePlacer, error) {
 	for _, p := range sp.stones {
 		s := grid.Separation(sp.nextStone, p)
 		if separations.Has(s) {
-			return sp, fmt.Errorf("cannot place at %s, unique distance constraint violated with stone at %s", sp.nextStone, p)
+			return sp, errDistanceConstraintViolated
 		}
 		separations.Add(s)
 	}
@@ -115,7 +119,7 @@ func (sp *unorderedStonePlacer) Place() (StonePlacer, error) {
 	for _, p := range sp.stones.Elements() {
 		s := grid.Separation(sp.nextStone, p)
 		if separations.Has(s) {
-			return sp, fmt.Errorf("cannot place at %s, unique distance constraint violated with stone at %s", sp.nextStone, p)
+			return sp, errDistanceConstraintViolated
 		}
 		separations.Add(s)
 	}

@@ -7,6 +7,10 @@ import (
 	"github.com/WillMorrison/pegboard-blog/placer"
 )
 
+var (
+	errNoSolutions = fmt.Errorf("no solutions exist")
+)
+
 type Solver interface {
 	// Solve returns either Placements such that IsValidSolution(grid, placements) == true, or an error
 	Solve(grid.Grid) (grid.Placements, error)
@@ -59,7 +63,7 @@ func (s SingleThreadedSolver) dfs(sp placer.StonePlacer) (placer.StonePlacer, er
 		}
 		return final, nil
 	}
-	return sp, fmt.Errorf("no solutions found")
+	return sp, errNoSolutions
 }
 
 func (sts SingleThreadedSolver) Solve(g grid.Grid) (grid.Placements, error) {
@@ -71,5 +75,5 @@ func (sts SingleThreadedSolver) Solve(g grid.Grid) (grid.Placements, error) {
 		}
 		return solution.Placements(), nil
 	}
-	return nil, fmt.Errorf("no solutions exist")
+	return nil, errNoSolutions
 }
