@@ -151,3 +151,65 @@ type UnorderedStonePlacerProvider struct {
 func (spp UnorderedStonePlacerProvider) New(g grid.Grid, p grid.Placements) StonePlacer {
 	return &unorderedStonePlacer{grid: g, stones: spp.PointSetConstructor(p), separations: spp.SeparationSetConstructor(p), nextStone: grid.Point{}}
 }
+
+type orderedNoAllocStonePlacer struct {
+	grid         grid.Grid
+	stones       grid.Placements
+	separations  sets.SeparationSet
+	nextStone    grid.Point
+	nextFragment *orderedNoAllocStonePlacer
+}
+
+func (sp *orderedNoAllocStonePlacer) Place() (StonePlacer, error) {
+	defer func() { sp.nextStone = advanceStone(sp.grid, sp.nextStone) }()
+
+	// Check that placing the next stone doesn't result in duplicate separations
+	sp.nextFragment.separations.Clone(sp.separations)
+	for _, p := range sp.stones {
+		s := grid.Separation(sp.nextStone, p)
+		if sp.nextFragment.separations.Has(s) {
+			return nil, errDistanceConstraintViolated
+		}
+		sp.nextFragment.separations.Add(s)
+	}
+
+	copy(sp.nextFragment.stones, sp.stones)
+	sp.nextFragment.stones[len(sp.stones)] = sp.nextStone
+	sp.nextFragment.nextStone = advanceStone(sp.grid, sp.nextStone)
+	return sp.nextFragment, nil
+}
+
+func (sp orderedNoAllocStonePlacer) Done() bool {
+	return !grid.IsInBounds(sp.grid, sp.nextStone)
+}
+
+func (sp orderedNoAllocStonePlacer) Grid() grid.Grid {
+	return sp.grid
+}
+
+func (sp orderedNoAllocStonePlacer) Placements() grid.Placements {
+	return sp.stones
+}
+
+type OrderedNoAllocStonePlacerProvider struct{}
+
+func (spp OrderedNoAllocStonePlacerProvider) New(g grid.Grid, p grid.Placements) StonePlacer {
+	fragments := make([]orderedNoAllocStonePlacer, g.Size+1)
+	for i := 0; i < len(fragments); i++ {
+		fragments[i] = orderedNoAllocStonePlacer{
+			grid:        g,
+			stones:      make(grid.Placements, i),
+			separations: sets.NewBitSeparationSet(nil), // This implementation's Clone() shouldn't allocate
+			nextStone:   grid.Point{},
+		}
+		if i+1 < len(fragments) {
+			fragments[i].nextFragment = &(fragments[i+1])
+		}
+	}
+	p.Sort()
+	for i, stone := range p {
+		fragments[i].nextStone = stone
+		fragments[i].Place()
+	}
+	return &fragments[len(p)]
+}

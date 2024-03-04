@@ -10,6 +10,7 @@ type SeparationSet interface {
 	Has(uint16) bool
 	Add(uint16)
 	Copy() SeparationSet
+	Clone(SeparationSet)
 	Elements() []uint16
 }
 
@@ -45,6 +46,15 @@ func (ss mapSeparationSet) Copy() SeparationSet {
 	return newSet
 }
 
+func (ss mapSeparationSet) Clone(ss2 SeparationSet) {
+	for k := range ss {
+		delete(ss, k)
+	}
+	for _, sep := range ss2.Elements() {
+		ss[sep] = true
+	}
+}
+
 func (ss mapSeparationSet) Elements() []uint16 {
 	keys := make([]uint16, 0, len(ss))
 	for k := range ss {
@@ -55,7 +65,7 @@ func (ss mapSeparationSet) Elements() []uint16 {
 
 // A set representing membership as bits. Has up to 2*14^2 = 392 members, which is sufficient for separations on a max sized grid.
 // Separation element ordering is little endian across the whole array.
-type bitSeparationSet [49]byte 
+type bitSeparationSet [49]byte
 
 func NewBitSeparationSet(p grid.Placements) SeparationSet {
 	var s bitSeparationSet
@@ -79,6 +89,21 @@ func (ss *bitSeparationSet) Add(sep uint16) {
 func (ss *bitSeparationSet) Copy() SeparationSet {
 	var newSet bitSeparationSet = *ss
 	return &newSet
+}
+
+func (ss *bitSeparationSet) Clone(ss2 SeparationSet)  {
+	switch t := ss2.(type) {
+	// If the second set is also a bit array, just copy the array
+	case *bitSeparationSet:
+		*ss = *t
+	default:
+		for i :=0 ; i< len(ss); i++ {
+			ss[i] = 0
+		}
+		for _, sep := range ss2.Elements() {
+			ss.Add(sep)
+		}
+	}
 }
 
 func (ss bitSeparationSet) Elements() []uint16 {

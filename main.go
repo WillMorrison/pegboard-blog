@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	UnorderedStonePlacer = "unordered"
-	OrderedStonePlacer   = "ordered"
+	UnorderedStonePlacer      = "unordered"
+	OrderedStonePlacer        = "ordered"
+	OrderedNoAllocStonePlacer = "ordered_noalloc"
 
 	EmptyStartingPoint         = "empty_grid"
 	SingleOctantStartingPoints = "first_octant"
@@ -35,7 +36,7 @@ func main() {
 	flag.Var(enumflag.New(&separationSet, MapSeparationSet, BitSeparationSet), "separation_set", "SeparationSet implementation to use")
 
 	stonePlacer := OrderedStonePlacer
-	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer), "placer", "StonePlacer implementation to use")
+	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer, OrderedNoAllocStonePlacer), "placer", "StonePlacer implementation to use")
 
 	startingPoint := SingleOctantStartingPoints
 	flag.Var(enumflag.New(&startingPoint, EmptyStartingPoint, SingleOctantStartingPoints), "start", "Starting point for the search")
@@ -72,6 +73,8 @@ func main() {
 	case OrderedStonePlacer:
 		stonePlacerConstructor = placer.OrderedStonePlacerProvider{
 			SeparationSetConstructor: separationSetConstructor}
+	case OrderedNoAllocStonePlacer:
+		stonePlacerConstructor = placer.OrderedNoAllocStonePlacerProvider{}
 	}
 
 	s := solver.SingleThreadedSolver{

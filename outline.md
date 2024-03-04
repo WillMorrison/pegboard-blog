@@ -28,4 +28,5 @@ We want to explore all of these, so there will be multiple versions, interfaces 
 
 1. Start with unordered, empty grid, single threaded, map based sets. It's super slow for size=8 (like, more than 12 hours) but finds size 7 solution in a few seconds. We can figure out from this behaviour that searching the whole solution space takes way too long. First because we're searching every permutation of 8 placements (even though we don't care about the order for our problem) - switch to ordered placement and save 8!=40320x time.
 2. We can save some more time by eliminating some searching of reflections and rotations by constraining the first stone placed to one octant. 
-3. Now we look at a cpu profile. Most of the time is spent doing set operations. Maps are easy to use as sets, but we have constrained set sizes and elements, so we can create a custom bit-based set to speed things up even more.
+3. Now we look at a cpu profile. Most of the time is spent doing set operations. Maps are easy to use as sets, but we have constrained set sizes and elements, so we can create a custom bitarray-based set to speed things up even more.
+4. Now allocating memory for new objects takes up a large chunk of time (for garbage collection). Preallocating all memory before the search means we don't need to do garbage collection.

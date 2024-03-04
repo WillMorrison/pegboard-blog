@@ -90,7 +90,46 @@ func Test_SeparationSet(t *testing.T) {
 					t.Errorf("len(%s.Elements())=%d, want 0", tt.name, got)
 				}
 			})
+
+			t.Run("Add_Clone_Elements", func(t *testing.T) {
+				// Add two different separations to each set, then make the second set a clone of the first
+				sep1 := uint16(4)
+				sep2 := uint16(6)
+				ss1 := tt.ssc(nil)
+				ss1.Add(sep1)
+				ss2 := tt.ssc(nil)
+				ss2.Add(sep2)
+				ss2.Clone(ss1)
+				if diff := cmp.Diff(ss1.Elements(), ss2.Elements()); diff != "" {
+					t.Errorf("%s.Clone().Elements() had diff %s", tt.name, diff)
+				}
+			})
+
+			t.Run("Clone_Add_Has", func(t *testing.T) {
+				// Make the second set a clone of the first, then add a value to it
+				sep := uint16(4)
+				ss1 := tt.ssc(nil)
+				ss2 := tt.ssc(nil)
+				ss2.Clone(ss1)
+				ss2.Add(sep)
+				if ss1.Has(sep) {
+					t.Errorf("%s.Has(%d)=true, want false", tt.name, sep)
+				}
+			})
 		})
+	}
+}
+
+func Test_bitSeparationSet_Clone_mapSeparationSet(t *testing.T) {
+	sep1 := uint16(4)
+	sep2 := uint16(6)
+	ss1 := NewMapSeparationSet(nil)
+	ss1.Add(sep1)
+	ss2 := NewBitSeparationSet(nil)
+	ss2.Add(sep2)
+	ss2.Clone(ss1)
+	if diff := cmp.Diff(ss1.Elements(), ss2.Elements()); diff != "" {
+		t.Errorf("bitSeparationset.Clone(mapSeparationSet).Elements() had diff %s", diff)
 	}
 }
 
