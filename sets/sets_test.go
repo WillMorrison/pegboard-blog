@@ -133,89 +133,158 @@ func Test_bitSeparationSet_Clone_mapSeparationSet(t *testing.T) {
 	}
 }
 
-// Arbitrary grid point values.
-var (
-	point1 = grid.Point{Row: 1, Col: 2}
-	point2 = grid.Point{Row: 3, Col: 4}
-)
+func Test_PointSet(t *testing.T) {
+	// Arbitrary grid point values.
+	point1 := grid.Point{Row: 1, Col: 2}
+	point2 := grid.Point{Row: 3, Col: 4}
 
-func Test_mapPointSet_Has(t *testing.T) {
-	ps := NewMapPointSet(nil)
-	if ps.Has(point1) {
-		t.Errorf("%s.Has(%s)=true, want false", ps, point1)
-	}
-}
-
-func Test_mapPointSet_AddHas(t *testing.T) {
-	ps := NewMapPointSet(nil)
-	ps.Add(point1)
-	if !ps.Has(point1) {
-		t.Errorf("%s.Has(%s)=false, want true", ps, point1)
-	}
-}
-
-func Test_mapPointSet_AddHasOther(t *testing.T) {
-	ps := NewMapPointSet(nil)
-	ps.Add(point1)
-	if ps.Has(point2) {
-		t.Errorf("%s.Has(%s)=true, want false", ps, point2)
-	}
-}
-
-func Test_mapPointSet_AddCopyHas(t *testing.T) {
-	ps1 := NewMapPointSet(nil)
-	ps1.Add(point1)
-	ps2 := ps1.Copy()
-	if !ps2.Has(point1) {
-		t.Errorf("%s.Has(%s)=false, want true", ps2, point1)
-	}
-}
-
-func Test_mapPointSet_AddCopyHasOther(t *testing.T) {
-	ps1 := NewMapPointSet(nil)
-	ps1.Add(point1)
-	ps2 := ps1.Copy()
-	if ps2.Has(point2) {
-		t.Errorf("%s.Has(%s)=true, want false", ps2, point2)
-	}
-}
-
-func Test_mapPointSet_CopyAddHas(t *testing.T) {
-	ps1 := NewMapPointSet(nil)
-	ps2 := ps1.Copy()
-	ps2.Add(point1)
-	if ps1.Has(point1) {
-		t.Errorf("%s.Has(%s)=true, want false", ps1, point1)
-	}
-}
-
-func Test_mapPointSet_Elements(t *testing.T) {
 	tests := []struct {
 		name string
-		ps   PointSet
-		want grid.Placements
+		psc  PointSetConstructor
 	}{
-		{
-			name: "nil",
-			ps:   NewMapPointSet(nil),
-			want: grid.Placements{},
-		},
-		{
-			name: "empty",
-			ps:   NewMapPointSet(grid.Placements{}),
-			want: grid.Placements{},
-		},
-		{
-			name: "nonempty",
-			ps:   NewMapPointSet(grid.Placements{point1, point2}),
-			want: grid.Placements{point1, point2},
-		},
+		{"mapPointSet", NewMapPointSet},
+		{"bitArrayPointSet", NewBitArrayPointSet},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.ps.Elements(); !cmp.Equal(got, tt.want, cmpopts.SortSlices(grid.LessThan)) {
-				t.Errorf("mapPointSet.Elements() = %v, want %v", got, tt.want)
-			}
+
+			t.Run("Empty Has", func(t *testing.T) {
+				ps := tt.psc(nil)
+				if ps.Has(point1) {
+					t.Errorf("%s.Has(%s)=true, want false", ps, point1)
+				}
+			})
+
+			t.Run("Add Has", func(t *testing.T) {
+				ps := tt.psc(nil)
+				ps.Add(point1)
+				if !ps.Has(point1) {
+					t.Errorf("%s.Has(%s)=false, want true", ps, point1)
+				}
+			})
+
+			t.Run("Add Has Other", func(t *testing.T) {
+				ps := tt.psc(nil)
+				ps.Add(point1)
+				if ps.Has(point2) {
+					t.Errorf("%s.Has(%s)=true, want false", ps, point2)
+				}
+			})
+
+			t.Run("Add Copy Has", func(t *testing.T) {
+				ps1 := tt.psc(nil)
+				ps1.Add(point1)
+				ps2 := ps1.Copy()
+				if !ps2.Has(point1) {
+					t.Errorf("%s.Has(%s)=false, want true", ps2, point1)
+				}
+			})
+
+			t.Run("Add Copy Has Other", func(t *testing.T) {
+				ps1 := tt.psc(nil)
+				ps1.Add(point1)
+				ps2 := ps1.Copy()
+				if ps2.Has(point2) {
+					t.Errorf("%s.Has(%s)=true, want false", ps2, point2)
+				}
+			})
+
+			t.Run("Copy Add Has", func(t *testing.T) {
+				ps1 := tt.psc(nil)
+				ps2 := ps1.Copy()
+				ps2.Add(point1)
+				if ps1.Has(point1) {
+					t.Errorf("%s.Has(%s)=true, want false", ps1, point1)
+				}
+			})
+
+			t.Run("Elements", func(t *testing.T) {
+				tests := []struct {
+					name string
+					arg  grid.Placements
+					want grid.Placements
+				}{
+					{
+						name: "nil",
+						arg:  nil,
+						want: grid.Placements{},
+					},
+					{
+						name: "empty",
+						arg:  grid.Placements{},
+						want: grid.Placements{},
+					},
+					{
+						name: "nonempty",
+						arg:  grid.Placements{point1, point2},
+						want: grid.Placements{point1, point2},
+					},
+				}
+				for _, ttt := range tests {
+					t.Run(ttt.name, func(t *testing.T) {
+						ps := tt.psc(ttt.arg)
+						if got := ps.Elements(); !cmp.Equal(got, ttt.want, cmpopts.SortSlices(grid.LessThan)) {
+							t.Errorf("%s(%v).Elements() = %v, want %v", tt.name, ttt.arg, got, ttt.want)
+						}
+					})
+				}
+			})
+			t.Run("Add_Clone_Elements", func(t *testing.T) {
+				// Add two different points to each set, then make the second set a clone of the first
+				ps1 := tt.psc(nil)
+				ps1.Add(point1)
+				ps2 := tt.psc(nil)
+				ps2.Add(point2)
+				ps2.Clone(ps1)
+				if diff := cmp.Diff(ps1.Elements(), ps2.Elements()); diff != "" {
+					t.Errorf("%s.Clone().Elements() had diff %s", tt.name, diff)
+				}
+			})
+
+			t.Run("Clone_Add_Has", func(t *testing.T) {
+				// Make the second set a clone of the first, then add a value to it
+				ps1 := tt.psc(nil)
+				ps2 := tt.psc(nil)
+				ps2.Clone(ps1)
+				ps2.Add(point1)
+				if ps1.Has(point1) {
+					t.Errorf("%s.Has(%d)=true, want false", tt.name, point1)
+				}
+			})
+
 		})
+	}
+}
+
+func Test_bitArrayPointSet_Clone_mapPointSet(t *testing.T) {
+	// Arbitrary grid point values.
+	point1 := grid.Point{Row: 1, Col: 2}
+	point2 := grid.Point{Row: 3, Col: 4}
+	ps1 := NewMapPointSet(nil)
+	ps1.Add(point1)
+	ps2 := NewBitArrayPointSet(nil)
+	ps2.Add(point2)
+	ps2.Clone(ps1)
+	if diff := cmp.Diff(ps1.Elements(), ps2.Elements()); diff != "" {
+		t.Errorf("bitArrayPointSet.Clone(mapPointSet).Elements() had diff %s", diff)
+	}
+}
+
+func Test_bitArrayPointSet_MaxGridPoints(t *testing.T) {
+	ps := NewBitArrayPointSet(nil)
+	for row := uint8(0); row < grid.MaxGridSize; row++ {
+		for col := uint8(0); col < grid.MaxGridSize; col++ {
+			p1 := grid.Point{Row: row, Col: col}
+			ps.Add(p1)
+
+			p2 := indexToPoint(pointToIndex(p1))
+			if p1 != p2 {
+				t.Errorf("indexToPoint(pointToIndex(%v))=%v, want %v", p1, p2, p1)
+			}
+		}
+	}
+	want := grid.MaxGridSize * grid.MaxGridSize
+	if got := len(ps.Elements()); got != want {
+		t.Errorf("Pointset has %d elements, want %d", got, want)
 	}
 }

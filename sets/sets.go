@@ -91,13 +91,13 @@ func (ss *bitSeparationSet) Copy() SeparationSet {
 	return &newSet
 }
 
-func (ss *bitSeparationSet) Clone(ss2 SeparationSet)  {
+func (ss *bitSeparationSet) Clone(ss2 SeparationSet) {
 	switch t := ss2.(type) {
 	// If the second set is also a bit array, just copy the array
 	case *bitSeparationSet:
 		*ss = *t
 	default:
-		for i :=0 ; i< len(ss); i++ {
+		for i := 0; i < len(ss); i++ {
 			ss[i] = 0
 		}
 		for _, sep := range ss2.Elements() {
@@ -120,6 +120,7 @@ type PointSet interface {
 	Has(grid.Point) bool
 	Add(grid.Point)
 	Copy() PointSet
+	Clone(PointSet)
 	Elements() grid.Placements
 }
 
@@ -151,6 +152,15 @@ func (ps mapPointSet) Copy() PointSet {
 	return newSet
 }
 
+func (ss mapPointSet) Clone(ss2 PointSet) {
+	for k := range ss {
+		delete(ss, k)
+	}
+	for _, sep := range ss2.Elements() {
+		ss[sep] = true
+	}
+}
+
 func (ps mapPointSet) Elements() grid.Placements {
 	points := make(grid.Placements, 0, len(ps))
 	for p := range ps {
@@ -161,4 +171,67 @@ func (ps mapPointSet) Elements() grid.Placements {
 
 func (ps mapPointSet) String() string {
 	return fmt.Sprint(ps.Elements())
+}
+
+type bitArrayPointSet [32]byte
+
+func NewBitArrayPointSet(points grid.Placements) PointSet {
+	var ps bitArrayPointSet
+	for _, p := range points {
+		ps.Add(p)
+	}
+	return &ps
+}
+
+// pointToIndex encodes a point into one byte, storing the row in the first 4 bits, and the column in the last 4
+func pointToIndex(p grid.Point) uint8 {
+	return p.Row<<4 | p.Col
+}
+
+// indexToPoint decodes a Point from a byte created by pointToIndex.
+func indexToPoint(i uint8) grid.Point {
+	return grid.Point{Row: i >> 4, Col: i & 0x0f}
+}
+
+func (ps *bitArrayPointSet) Has(p grid.Point) bool {
+	i := pointToIndex(p)
+	return ps[i>>3]&(0x80>>(i&0x7)) != 0
+}
+
+func (ps *bitArrayPointSet) Add(p grid.Point) {
+	i := pointToIndex(p)
+	ps[i>>3] |= 0x80 >> (i & 0x7)
+}
+
+func (ps *bitArrayPointSet) Copy() PointSet {
+	var newSet bitArrayPointSet = *ps
+	return &newSet
+}
+
+func (ps *bitArrayPointSet) Clone(ps2 PointSet) {
+	switch t := ps2.(type) {
+	// If the second set is also a bit array, just copy the array
+	case *bitArrayPointSet:
+		*ps = *t
+	default:
+		for i := 0; i < len(ps); i++ {
+			ps[i] = 0
+		}
+		for _, sep := range ps2.Elements() {
+			ps.Add(sep)
+		}
+	}
+}
+
+func (ps bitArrayPointSet) Elements() grid.Placements {
+	keys := make(grid.Placements, 0, len(ps))
+	for i := 0; i < len(ps); i++ {
+		for j := uint8(0); j < 8; j++ {
+			if ps[i]&(0x80>>j) != 0 {
+				index := uint8(i)<<3 + j
+				keys = append(keys, indexToPoint(index))
+			}
+		}
+	}
+	return keys
 }
