@@ -61,7 +61,7 @@ func main() {
 	case MapSeparationSet:
 		separationSetConstructor = sets.NewMapSeparationSet
 	case BitSeparationSet:
-		separationSetConstructor = sets.NewBitSeparationSet
+		separationSetConstructor = sets.NewBitArraySeparationSet
 	}
 
 	var stonePlacerConstructor placer.StonePlacerConstructor

@@ -18,7 +18,7 @@ func Test_SeparationSet(t *testing.T) {
 		ssc  SeparationSetConstructor
 	}{
 		{"mapSeparationSet", NewMapSeparationSet},
-		{"bitSeparationSet", NewBitSeparationSet},
+		{"bitSeparationSet", NewBitArraySeparationSet},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,6 +116,55 @@ func Test_SeparationSet(t *testing.T) {
 					t.Errorf("%s.Has(%d)=true, want false", tt.name, sep)
 				}
 			})
+
+			t.Run("Add_Clear_Has", func(t *testing.T) {
+				ss := tt.ssc(nil)
+				ss.Add(maxSep)
+				ss.Clear()
+				if got := len(ss.Elements()); got != 0 {
+					t.Errorf("len(%s.Clear().Elements())=%d, want 0", tt.name, got)
+				}
+			})
+
+			t.Run("Union_Elements", func(t *testing.T) {
+				ss1 := tt.ssc(nil)
+				ss1.Add(1)
+				ss1.Add(4)
+				ss2 := tt.ssc(nil)
+				ss2.Add(4)
+				ss2.Add(9)
+				ss2.Union(ss1)
+				want := []uint16{1, 4, 9}
+				if diff := cmp.Diff(ss2.Elements(), want, cmpopts.SortSlices(func(a, b uint16) bool { return a < b })); diff != "" {
+					t.Errorf("%s.Union().Elements() had diff %s", tt.name, diff)
+				}
+			})
+
+			t.Run("Iter_Empty", func(t *testing.T) {
+				ss := tt.ssc(nil)
+				got := make([]uint16, 0)
+				it := ss.Iter()
+				for sep, ok := it(); ok; sep, ok = it() {
+					got = append(got, sep)
+				}
+				want := []uint16{}
+				if diff := cmp.Diff(got, want); diff != "" {
+					t.Errorf("%s.Iter() had diff: %s", tt.name, diff)
+				}
+			})
+
+			t.Run("Iter_Nonempty", func(t *testing.T) {
+				ss := tt.ssc(grid.Placements{grid.Point{0, 0}, grid.Point{0, 1}, grid.Point{0, 3}})
+				got := make([]uint16, 0)
+				it := ss.Iter()
+				for sep, ok := it(); ok; sep, ok = it() {
+					got = append(got, sep)
+				}
+				want := []uint16{1, 4, 9}
+				if diff := cmp.Diff(got, want, cmpopts.SortSlices(func(a, b uint16) bool { return a < b })); diff != "" {
+					t.Errorf("%s.Iter() had diff: %s", tt.name, diff)
+				}
+			})
 		})
 	}
 }
@@ -125,7 +174,7 @@ func Test_bitSeparationSet_Clone_mapSeparationSet(t *testing.T) {
 	sep2 := uint16(6)
 	ss1 := NewMapSeparationSet(nil)
 	ss1.Add(sep1)
-	ss2 := NewBitSeparationSet(nil)
+	ss2 := NewBitArraySeparationSet(nil)
 	ss2.Add(sep2)
 	ss2.Clone(ss1)
 	if diff := cmp.Diff(ss1.Elements(), ss2.Elements()); diff != "" {
@@ -261,6 +310,14 @@ func Test_PointSet(t *testing.T) {
 				want := grid.Placements{point1, point2, point3}
 				if diff := cmp.Diff(ps2.Elements(), want, cmpopts.SortSlices(grid.LessThan)); diff != "" {
 					t.Errorf("%s.Union().Elements() had diff %s", tt.name, diff)
+				}
+			})
+
+			t.Run("Clear_Elements", func(t *testing.T) {
+				ps := tt.psc(grid.Placements{point1, point2})
+				ps.Clear()
+				if got := len(ps.Elements()); got != 0 {
+					t.Errorf("len(%s.Clear().Elements())=%d, want 0", tt.name, got)
 				}
 			})
 
