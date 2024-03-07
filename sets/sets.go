@@ -1,8 +1,6 @@
 package sets
 
 import (
-	"fmt"
-
 	"github.com/WillMorrison/pegboard-blog/grid"
 )
 
@@ -117,14 +115,44 @@ func (ss bitSeparationSet) Elements() []uint16 {
 }
 
 type PointSet interface {
+	// Has checks if the point is in the set
 	Has(grid.Point) bool
+	// Add adds the point to the set
 	Add(grid.Point)
+	// Union updates the set to contain the union of points of the two sets
+	Union(PointSet)
+	// Copy creates a copy of the set that does not share memory
 	Copy() PointSet
+	// Clone updates the set to contain the same elements as the other set
 	Clone(PointSet)
+	// Elements returns a slice of points in the set
 	Elements() grid.Placements
+	// Iter returns an iterator over the points in the set
+	Iter() grid.PointIterator
 }
 
 type PointSetConstructor func(grid.Placements) PointSet
+
+func genericPointSetUnion(ps1, ps2 PointSet) {
+	it := ps2.Iter()
+	for p, done := it.Next(); done == nil; p, done = it.Next() {
+		ps1.Add(p)
+	}
+}
+
+type placementsIterator struct {
+	i        int
+	elements grid.Placements
+}
+
+func (pi *placementsIterator) Next() (grid.Point, error) {
+	if pi.i == len(pi.elements) {
+		return grid.Point{}, grid.ErrIterationFinished
+	}
+	next := pi.elements[pi.i]
+	pi.i++
+	return next, nil
+}
 
 type mapPointSet map[grid.Point]bool
 
@@ -144,6 +172,10 @@ func (ps mapPointSet) Add(p grid.Point) {
 	ps[p] = true
 }
 
+func (ps mapPointSet) Union(ps2 PointSet) {
+	genericPointSetUnion(ps, ps2)
+}
+
 func (ps mapPointSet) Copy() PointSet {
 	newSet := make(mapPointSet)
 	for p := range ps {
@@ -152,13 +184,11 @@ func (ps mapPointSet) Copy() PointSet {
 	return newSet
 }
 
-func (ss mapPointSet) Clone(ss2 PointSet) {
-	for k := range ss {
-		delete(ss, k)
+func (ps mapPointSet) Clone(ps2 PointSet) {
+	for k := range ps {
+		delete(ps, k)
 	}
-	for _, sep := range ss2.Elements() {
-		ss[sep] = true
-	}
+	genericPointSetUnion(ps, ps2)
 }
 
 func (ps mapPointSet) Elements() grid.Placements {
@@ -169,11 +199,11 @@ func (ps mapPointSet) Elements() grid.Placements {
 	return points
 }
 
-func (ps mapPointSet) String() string {
-	return fmt.Sprint(ps.Elements())
+func (ps mapPointSet) Iter() grid.PointIterator {
+	return &placementsIterator{i: 0, elements: ps.Elements()}
 }
 
-type bitArrayPointSet [32]byte
+type bitArrayPointSet [16]uint16
 
 func NewBitArrayPointSet(points grid.Placements) PointSet {
 	var ps bitArrayPointSet
@@ -183,24 +213,47 @@ func NewBitArrayPointSet(points grid.Placements) PointSet {
 	return &ps
 }
 
-// pointToIndex encodes a point into one byte, storing the row in the first 4 bits, and the column in the last 4
-func pointToIndex(p grid.Point) uint8 {
-	return p.Row<<4 | p.Col
+type bitArrayPointSetIterator struct {
+	ps   *bitArrayPointSet
+	next grid.Point
 }
 
-// indexToPoint decodes a Point from a byte created by pointToIndex.
-func indexToPoint(i uint8) grid.Point {
-	return grid.Point{Row: i >> 4, Col: i & 0x0f}
+func (pi *bitArrayPointSetIterator) Next() (grid.Point, error) {
+	if pi.next.Row >= grid.MaxGridSize {
+		return pi.next, grid.ErrIterationFinished
+	}
+	next := pi.next
+	for pi.next = grid.AdvanceStone(grid.Grid{grid.MaxGridSize}, pi.next); pi.next.Row < grid.MaxGridSize; pi.next = grid.AdvanceStone(grid.Grid{grid.MaxGridSize}, pi.next) {
+		// Skip over empty rows without iterating through columns
+		for pi.next.Row < grid.MaxGridSize && pi.ps[pi.next.Row] == 0 {
+			pi.next.Row++
+			pi.next.Col = 0
+		}
+		if pi.ps.Has(pi.next) {
+			return next, nil
+		}
+	}
+	return next, nil
 }
 
-func (ps *bitArrayPointSet) Has(p grid.Point) bool {
-	i := pointToIndex(p)
-	return ps[i>>3]&(0x80>>(i&0x7)) != 0
+func (ps bitArrayPointSet) Has(p grid.Point) bool {
+	return ps[p.Row]&(0x8000>>p.Col) != 0
 }
 
 func (ps *bitArrayPointSet) Add(p grid.Point) {
-	i := pointToIndex(p)
-	ps[i>>3] |= 0x80 >> (i & 0x7)
+	ps[p.Row] |= 0x8000 >> p.Col
+}
+
+func (ps *bitArrayPointSet) Union(ps2 PointSet) {
+	switch t := ps2.(type) {
+	// If the second set is also a bit array, use bitwise or
+	case *bitArrayPointSet:
+		for i := 0; i < len(ps); i++ {
+			ps[i] |= t[i]
+		}
+	default:
+		genericPointSetUnion(ps, ps2)
+	}
 }
 
 func (ps *bitArrayPointSet) Copy() PointSet {
@@ -214,24 +267,24 @@ func (ps *bitArrayPointSet) Clone(ps2 PointSet) {
 	case *bitArrayPointSet:
 		*ps = *t
 	default:
-		for i := 0; i < len(ps); i++ {
-			ps[i] = 0
-		}
-		for _, sep := range ps2.Elements() {
-			ps.Add(sep)
-		}
+		*ps = bitArrayPointSet{}
+		genericPointSetUnion(ps, ps2)
 	}
 }
 
 func (ps bitArrayPointSet) Elements() grid.Placements {
 	keys := make(grid.Placements, 0, len(ps))
-	for i := 0; i < len(ps); i++ {
-		for j := uint8(0); j < 8; j++ {
-			if ps[i]&(0x80>>j) != 0 {
-				index := uint8(i)<<3 + j
-				keys = append(keys, indexToPoint(index))
-			}
-		}
+	it := ps.Iter()
+	for p, done := it.Next(); done == nil; p, done = it.Next() {
+		keys = append(keys, p)
 	}
 	return keys
+}
+
+func (ps *bitArrayPointSet) Iter() grid.PointIterator {
+	it := bitArrayPointSetIterator{ps: ps, next: grid.Point{}}
+	if !ps.Has(it.next) {
+		it.Next()
+	}
+	return &it
 }

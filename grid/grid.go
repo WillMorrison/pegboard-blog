@@ -6,12 +6,20 @@ import (
 	"slices"
 )
 
-// Grids larger than 14x14 are known to have no solutions
-const MaxGridSize = 14
+const (
+	// Grids larger than 14x14 are known to have no solutions
+	MaxGridSize = 14
+	// The largest squared distance between points on a maximum sized grid
+	MaxSeparation = (MaxGridSize - 1) * (MaxGridSize - 1) * 2
+)
 
 // Grid represents an NxN square grid
 type Grid struct {
 	Size uint8
+}
+
+func (g Grid) Iter() PointIterator {
+	return &gridPointIterator{grid: g, nextPoint: Point{}}
 }
 
 // Point is the coordinate of a stone on a grid
@@ -29,8 +37,40 @@ func IsInBounds(g Grid, p Point) bool {
 	return p.Row < g.Size && p.Col < g.Size
 }
 
+// AdvanceStone returns the next point in an ordered left to right, top to bottom traversal of the grid.
+// The returned point is *not* guaranteed to be on the grid.
+func AdvanceStone(g Grid, p Point) Point {
+	p2 := Point{Row: p.Row, Col: p.Col + 1}
+	if p2.Col == g.Size {
+		p2 = Point{Row: p.Row + 1, Col: 0}
+	}
+	return p2
+}
+
 func LessThan(p1, p2 Point) bool {
 	return p1.Row < p2.Row || p1.Row == p2.Row && p1.Col < p2.Col
+}
+
+var ErrIterationFinished error = fmt.Errorf("Iteration finished")
+
+// PointIterator allows iteration over a collection of points
+type PointIterator interface {
+	// Next returns the next Point or ErrIterationFinished
+	Next() (Point, error)
+}
+
+type gridPointIterator struct {
+	grid      Grid
+	nextPoint Point
+}
+
+func (pi *gridPointIterator) Next() (Point, error) {
+	next := pi.nextPoint
+	if !IsInBounds(pi.grid, next) {
+		return next, ErrIterationFinished
+	}
+	pi.nextPoint = AdvanceStone(pi.grid, pi.nextPoint)
+	return next, nil
 }
 
 // Placements represents a set of stones placed on the grid

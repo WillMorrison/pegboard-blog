@@ -137,6 +137,7 @@ func Test_PointSet(t *testing.T) {
 	// Arbitrary grid point values.
 	point1 := grid.Point{Row: 1, Col: 2}
 	point2 := grid.Point{Row: 3, Col: 4}
+	point3 := grid.Point{Row: 5, Col: 6}
 
 	tests := []struct {
 		name string
@@ -252,6 +253,17 @@ func Test_PointSet(t *testing.T) {
 				}
 			})
 
+			t.Run("Union_Elements", func(t *testing.T) {
+				// Add two different points to each set, then make the second set a clone of the first
+				ps1 := tt.psc(grid.Placements{point1, point2})
+				ps2 := tt.psc(grid.Placements{point1, point3})
+				ps2.Union(ps1)
+				want := grid.Placements{point1, point2, point3}
+				if diff := cmp.Diff(ps2.Elements(), want, cmpopts.SortSlices(grid.LessThan)); diff != "" {
+					t.Errorf("%s.Union().Elements() had diff %s", tt.name, diff)
+				}
+			})
+
 		})
 	}
 }
@@ -270,17 +282,25 @@ func Test_bitArrayPointSet_Clone_mapPointSet(t *testing.T) {
 	}
 }
 
+func Test_bitArrayPointSet_Union_mapPointSet(t *testing.T) {
+	// Arbitrary grid point values.
+	point1 := grid.Point{Row: 1, Col: 2}
+	point2 := grid.Point{Row: 3, Col: 4}
+	ps1 := NewMapPointSet(nil)
+	ps1.Add(point1)
+	ps2 := NewBitArrayPointSet(nil)
+	ps2.Add(point2)
+	ps2.Union(ps1)
+	if diff := cmp.Diff(ps2.Elements(), grid.Placements{point1, point2}); diff != "" {
+		t.Errorf("bitArrayPointSet.Clone(mapPointSet).Elements() had diff %s", diff)
+	}
+}
+
 func Test_bitArrayPointSet_MaxGridPoints(t *testing.T) {
 	ps := NewBitArrayPointSet(nil)
 	for row := uint8(0); row < grid.MaxGridSize; row++ {
 		for col := uint8(0); col < grid.MaxGridSize; col++ {
-			p1 := grid.Point{Row: row, Col: col}
-			ps.Add(p1)
-
-			p2 := indexToPoint(pointToIndex(p1))
-			if p1 != p2 {
-				t.Errorf("indexToPoint(pointToIndex(%v))=%v, want %v", p1, p2, p1)
-			}
+			ps.Add(grid.Point{Row: row, Col: col})
 		}
 	}
 	want := grid.MaxGridSize * grid.MaxGridSize

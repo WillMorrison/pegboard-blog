@@ -1,6 +1,7 @@
 package grid
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -149,5 +150,41 @@ func TestPlacements_Sort(t *testing.T) {
 				t.Errorf("%v.Sort() got %v want %v", tt.p, p, tt.want)
 			}
 		})
+	}
+}
+
+func TestAdvanceStone(t *testing.T) {
+	type args struct {
+		g Grid
+		p Point
+	}
+	tests := []struct {
+		name string
+		args args
+		want Point
+	}{
+		{name: "along row", args: args{g: Grid{5}, p: Point{1, 2}}, want: Point{1, 3}},
+		{name: "end of row", args: args{g: Grid{5}, p: Point{1, 4}}, want: Point{2, 0}},
+		{name: "end of grid", args: args{g: Grid{5}, p: Point{4, 4}}, want: Point{5, 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AdvanceStone(tt.args.g, tt.args.p); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("AdvanceStone() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGrid_Iter(t *testing.T) {
+	g := Grid{2}
+	it := g.Iter()
+	var got Placements
+	for p, done := it.Next(); done == nil; p, done = it.Next() {
+		got = append(got, p)
+	}
+	want := Placements{Point{0, 0}, Point{0, 1}, Point{1, 0}, Point{1, 1}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Iter() produced %v, want %v", got, want)
 	}
 }
