@@ -51,12 +51,10 @@ func LessThan(p1, p2 Point) bool {
 	return p1.Row < p2.Row || p1.Row == p2.Row && p1.Col < p2.Col
 }
 
-var ErrIterationFinished error = fmt.Errorf("Iteration finished")
-
 // PointIterator allows iteration over a collection of points
 type PointIterator interface {
-	// Next returns the next Point or ErrIterationFinished
-	Next() (Point, error)
+	// Next returns the next Point and whether or not it was valid
+	Next() (Point, bool)
 }
 
 type gridPointIterator struct {
@@ -64,13 +62,13 @@ type gridPointIterator struct {
 	nextPoint Point
 }
 
-func (pi *gridPointIterator) Next() (Point, error) {
+func (pi *gridPointIterator) Next() (Point, bool) {
 	next := pi.nextPoint
 	if !IsInBounds(pi.grid, next) {
-		return next, ErrIterationFinished
+		return next, false
 	}
 	pi.nextPoint = AdvanceStone(pi.grid, pi.nextPoint)
-	return next, nil
+	return next, true
 }
 
 // Placements represents a set of stones placed on the grid
@@ -95,17 +93,17 @@ func Separation(p1, p2 Point) uint16 {
 }
 
 // Checks that a proposed solution to the problem is valid
-func IsValidSolution(g Grid, p Placements) bool {
+func CheckValidSolution(g Grid, p Placements) error {
 	// Check that the required number of stones have been placed
 	if len(p) != int(g.Size) {
-		return false
+		return fmt.Errorf("%d stones have been placed, but need %d", len(p), g.Size)
 	}
 
-	separations := make(map[uint16]bool)
+	separations := make(map[uint16]Placements)
 	for i, p1 := range p {
 		// Check that all stones are in bounds
 		if !IsInBounds(g, p1) {
-			return false
+			return fmt.Errorf("%s is out of bounds", p1)
 		}
 
 		for j := i + 1; j < len(p); j++ {
@@ -113,15 +111,15 @@ func IsValidSolution(g Grid, p Placements) bool {
 			s := Separation(p1, p2)
 			// Check that no two stones are placed on the same point
 			if s == 0 {
-				return false
+				return fmt.Errorf("Multiple stones placed at %s", p1)
 			}
 			// Check that all separations are unique
-			if separations[s] {
-				return false
+			if previous, exists := separations[s]; exists {
+				return fmt.Errorf("Duplicated separation with squared distance %d between both %v and %v", s, previous, Placements{p1, p2})
 			}
-			separations[s] = true
+			separations[s] = Placements{p1, p2}
 		}
 	}
 
-	return true
+	return nil
 }

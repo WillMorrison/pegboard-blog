@@ -30,3 +30,4 @@ We want to explore all of these, so there will be multiple versions, interfaces 
 2. We can save some more time by eliminating some searching of reflections and rotations by constraining the first stone placed to one octant. 
 3. Now we look at a cpu profile. Most of the time is spent doing set operations. Maps are easy to use as sets, but we have constrained set sizes and elements, so we can create a custom bitarray-based set to speed things up even more.
 4. Now allocating memory for new objects takes up a large chunk of time (for garbage collection). Preallocating all memory before the search means we don't need to do garbage collection.
+5. At this point, checking for separation set membership is taking the most time. We try to avoid doing more work (placement attempts) by keeping a set of places we know stones can't go and skipping placement attempts there.

@@ -1,6 +1,8 @@
 package sets
 
 import (
+	"unsafe"
+
 	"github.com/WillMorrison/pegboard-blog/grid"
 )
 
@@ -12,7 +14,6 @@ type SeparationSet interface {
 	Copy() SeparationSet
 	Clone(SeparationSet)
 	Elements() []uint16
-	Iter() func() (uint16, bool)
 }
 
 type SeparationSetConstructor func(grid.Placements) SeparationSet
@@ -72,22 +73,9 @@ func (ss mapSeparationSet) Elements() []uint16 {
 	return keys
 }
 
-func (ss mapSeparationSet) Iter() func() (uint16, bool) {
-	elems := ss.Elements()
-	i := 0
-	return func() (uint16, bool) {
-		if i == len(elems) {
-			return 0, false
-		}
-		sep := elems[i]
-		i++
-		return sep, true
-	}
-}
-
-// A set representing membership as bits. Has up to 2*14^2 = 392 members, which is sufficient for separations on a max sized grid.
-// Separation element ordering is little endian across the whole array.
-type BitArraySeparationSet [49]byte
+// A set representing membership as bits. Has up to 2*13^2 = 338 members, which is sufficient for separations on a max sized grid.
+// Separation element ordering is little endian.
+type BitArraySeparationSet [6]uint64
 
 func NewBitArraySeparationSet(p grid.Placements) SeparationSet {
 	var s BitArraySeparationSet
@@ -101,20 +89,24 @@ func NewBitArraySeparationSet(p grid.Placements) SeparationSet {
 }
 
 func (ss BitArraySeparationSet) Has(sep uint16) bool {
-	return ss[sep>>3]&(0x80>>(sep&0x7)) != 0
+	return ss[sep>>6]&(0x1<<(sep&0x3f)) != 0
 }
 
 func (ss *BitArraySeparationSet) Add(sep uint16) {
-	ss[sep>>3] |= 0x80 >> (sep & 0x7)
+	ss[sep>>6] |= 0x1 << (sep & 0x3f)
 }
 
 func (ss *BitArraySeparationSet) Union(ss2 SeparationSet) {
 	switch t := ss2.(type) {
 	// If the second set is also a bit array, just bitwise or the array
 	case *BitArraySeparationSet:
-		for i := 0; i < len(ss); i++ {
-			ss[i] |= t[i]
-		}
+		// unrolled loop for speed
+		ss[0] |= t[0]
+		ss[1] |= t[1]
+		ss[2] |= t[2]
+		ss[3] |= t[3]
+		ss[4] |= t[4]
+		ss[5] |= t[5]
 	default:
 		for _, sep := range ss2.Elements() {
 			ss.Add(sep)
@@ -145,7 +137,7 @@ func (ss *BitArraySeparationSet) Clone(ss2 SeparationSet) {
 
 func (ss BitArraySeparationSet) Elements() []uint16 {
 	keys := make([]uint16, 0, len(ss))
-	for sep := uint16(0); sep < uint16(len(ss)*8); sep++ {
+	for sep := uint16(0); sep < uint16(grid.MaxSeparation+1); sep++ {
 		if ss.Has(sep) {
 			keys = append(keys, sep)
 		}
@@ -153,19 +145,34 @@ func (ss BitArraySeparationSet) Elements() []uint16 {
 	return keys
 }
 
-func (ss BitArraySeparationSet) Iter() func() (uint16, bool) {
-	sep := uint16(0)
-	for ; sep < uint16(len(ss)*8) && !ss.Has(sep); sep++ {
+type SeparationSetIterator struct {
+	SeparationSet SeparationSet
+	sep           uint16
+	maxSep        uint16
+}
+
+func NewSeparationSetIterator(ss SeparationSet) SeparationSetIterator {
+	ssi := SeparationSetIterator{SeparationSet: ss, maxSep: grid.MaxSeparation}
+	for ssi.sep++; ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.sep++ {
 	}
-	return func() (uint16, bool) {
-		if sep >= uint16(len(ss)*8) {
-			return 0, false
-		}
-		ret := sep
-		for sep++; sep < uint16(len(ss)*8) && !ss.Has(sep); sep++ {
-		}
-		return ret, true
+	return ssi
+}
+
+func NewSeparationSetIteratorForGrid(ss SeparationSet, g grid.Grid) SeparationSetIterator {
+	ssi := SeparationSetIterator{SeparationSet: ss, maxSep: uint16(g.Size-1) * uint16(g.Size-1) * 2}
+	for ssi.sep++; ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.sep++ {
 	}
+	return ssi
+}
+
+func (ssi *SeparationSetIterator) Next() (uint16, bool) {
+	if ssi.sep > ssi.maxSep {
+		return 0, false
+	}
+	ret := ssi.sep
+	for ssi.sep++; ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.sep++ {
+	}
+	return ret, true
 }
 
 type PointSet interface {
@@ -191,7 +198,7 @@ type PointSetConstructor func(grid.Placements) PointSet
 
 func genericPointSetUnion(ps1, ps2 PointSet) {
 	it := ps2.Iter()
-	for p, done := it.Next(); done == nil; p, done = it.Next() {
+	for p, ok := it.Next(); ok; p, ok = it.Next() {
 		ps1.Add(p)
 	}
 }
@@ -205,13 +212,13 @@ type placementsIterator struct {
 	elements grid.Placements
 }
 
-func (pi *placementsIterator) Next() (grid.Point, error) {
+func (pi *placementsIterator) Next() (grid.Point, bool) {
 	if pi.i == len(pi.elements) {
-		return grid.Point{}, grid.ErrIterationFinished
+		return grid.Point{}, false
 	}
 	next := pi.elements[pi.i]
 	pi.i++
-	return next, nil
+	return next, true
 }
 
 type mapPointSet map[grid.Point]bool
@@ -283,9 +290,9 @@ type bitArrayPointSetIterator struct {
 	next grid.Point
 }
 
-func (pi *bitArrayPointSetIterator) Next() (grid.Point, error) {
+func (pi *bitArrayPointSetIterator) Next() (grid.Point, bool) {
 	if pi.next.Row >= grid.MaxGridSize {
-		return pi.next, grid.ErrIterationFinished
+		return pi.next, false
 	}
 	next := pi.next
 	for pi.next = grid.AdvanceStone(grid.Grid{grid.MaxGridSize}, pi.next); pi.next.Row < grid.MaxGridSize; pi.next = grid.AdvanceStone(grid.Grid{grid.MaxGridSize}, pi.next) {
@@ -295,10 +302,10 @@ func (pi *bitArrayPointSetIterator) Next() (grid.Point, error) {
 			pi.next.Col = 0
 		}
 		if pi.ps.Has(pi.next) {
-			return next, nil
+			break
 		}
 	}
-	return next, nil
+	return next, true
 }
 
 func (ps BitArrayPointSet) Has(p grid.Point) bool {
@@ -313,9 +320,16 @@ func (ps *BitArrayPointSet) Union(ps2 PointSet) {
 	switch t := ps2.(type) {
 	// If the second set is also a bit array, use bitwise or
 	case *BitArrayPointSet:
-		for i := 0; i < len(ps); i++ {
-			ps[i] |= t[i]
-		}
+		// unrolled loop and typecasting for speed
+		v1 := (*[4]uint64)(unsafe.Pointer(ps))
+		v2 := (*[4]uint64)(unsafe.Pointer(t))
+		v1[0] |= v2[0]
+		v1[1] |= v2[1]
+		v1[2] |= v2[2]
+		v1[3] |= v2[3]
+		// for i := 0; i < len(ps); i++ {
+		// 	ps[i] |= t[i]
+		// }
 	default:
 		genericPointSetUnion(ps, ps2)
 	}
@@ -343,7 +357,7 @@ func (ps *BitArrayPointSet) Clone(ps2 PointSet) {
 func (ps BitArrayPointSet) Elements() grid.Placements {
 	keys := make(grid.Placements, 0, len(ps))
 	it := ps.Iter()
-	for p, done := it.Next(); done == nil; p, done = it.Next() {
+	for p, ok := it.Next(); ok; p, ok = it.Next() {
 		keys = append(keys, p)
 	}
 	return keys

@@ -143,8 +143,8 @@ func Test_SeparationSet(t *testing.T) {
 			t.Run("Iter_Empty", func(t *testing.T) {
 				ss := tt.ssc(nil)
 				got := make([]uint16, 0)
-				it := ss.Iter()
-				for sep, ok := it(); ok; sep, ok = it() {
+				it := NewSeparationSetIterator(ss)
+				for sep, ok := it.Next(); ok; sep, ok = it.Next() {
 					got = append(got, sep)
 				}
 				want := []uint16{}
@@ -156,8 +156,8 @@ func Test_SeparationSet(t *testing.T) {
 			t.Run("Iter_Nonempty", func(t *testing.T) {
 				ss := tt.ssc(grid.Placements{grid.Point{0, 0}, grid.Point{0, 1}, grid.Point{0, 3}})
 				got := make([]uint16, 0)
-				it := ss.Iter()
-				for sep, ok := it(); ok; sep, ok = it() {
+				it := NewSeparationSetIterator(ss)
+				for sep, ok := it.Next(); ok; sep, ok = it.Next() {
 					got = append(got, sep)
 				}
 				want := []uint16{1, 4, 9}
@@ -165,7 +165,34 @@ func Test_SeparationSet(t *testing.T) {
 					t.Errorf("%s.Iter() had diff: %s", tt.name, diff)
 				}
 			})
+
+			t.Run("IterForGrid_Nonempty", func(t *testing.T) {
+				ss := tt.ssc(grid.Placements{grid.Point{0, 0}, grid.Point{2, 2}, grid.Point{3, 3}})
+				got := make([]uint16, 0)
+				it := NewSeparationSetIteratorForGrid(ss, grid.Grid{3})
+				for sep, ok := it.Next(); ok; sep, ok = it.Next() {
+					got = append(got, sep)
+				}
+				want := []uint16{2, 8} // 18 is an invalid separation on a size 3 grid
+				if diff := cmp.Diff(got, want, cmpopts.SortSlices(func(a, b uint16) bool { return a < b })); diff != "" {
+					t.Errorf("%s.Iter() had diff: %s", tt.name, diff)
+				}
+			})
 		})
+	}
+}
+
+func Benchmark_BitArraySeparationSet(b *testing.B) {
+	ss := NewBitArraySeparationSet(nil)
+	for i := 0; i < b.N; i++ {
+		ss.Clear()
+		for sep := uint16(0); sep <= grid.MaxSeparation; sep++ {
+			ss.Add(sep)
+		}
+		iter := NewSeparationSetIterator(ss)
+		for sep, ok := iter.Next(); ok; sep, ok = iter.Next() {
+			_ = sep
+		}
 	}
 }
 

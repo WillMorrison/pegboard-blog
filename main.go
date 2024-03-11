@@ -10,33 +10,43 @@ import (
 
 	"github.com/WillMorrison/pegboard-blog/grid"
 	"github.com/WillMorrison/pegboard-blog/placer"
+	"github.com/WillMorrison/pegboard-blog/pruner"
 	"github.com/WillMorrison/pegboard-blog/sets"
 	"github.com/WillMorrison/pegboard-blog/solver"
 	"github.com/hashicorp/packer/command/enumflag"
 )
 
 const (
-	UnorderedStonePlacer      = "unordered"
-	OrderedStonePlacer        = "ordered"
-	OrderedNoAllocStonePlacer = "ordered_noalloc"
+	UnorderedStonePlacer             = "unordered"
+	OrderedStonePlacer               = "ordered"
+	OrderedNoAllocStonePlacer        = "ordered_noalloc"
+	OrderedNoAllocPruningStonePlacer = "ordered_noalloc_pruning"
+	OrderedNoAllocOpportunisticPruningStonePlacer = "ordered_noalloc_opportunistic_pruning"
 
 	EmptyStartingPoint         = "empty_grid"
 	SingleOctantStartingPoints = "first_octant"
 
 	MapSeparationSet = "map"
 	BitSeparationSet = "array"
+
+	RuntimePruner     = "runtime"
+	PrecomputedPruner = "precomputed"
 )
 
 func main() {
 	size := flag.Uint("size", 7, "the side length of square grid to search for solutions on")
 
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	var memprofile = flag.String("memprofile", "", "write memory profile to this file")
 
 	separationSet := BitSeparationSet
 	flag.Var(enumflag.New(&separationSet, MapSeparationSet, BitSeparationSet), "separation_set", "SeparationSet implementation to use")
 
+	prunerImpl := PrecomputedPruner
+	flag.Var(enumflag.New(&prunerImpl, RuntimePruner, PrecomputedPruner), "pruner", "Pruner implementation to use")
+
 	stonePlacer := OrderedStonePlacer
-	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer, OrderedNoAllocStonePlacer), "placer", "StonePlacer implementation to use")
+	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer, OrderedNoAllocStonePlacer, OrderedNoAllocPruningStonePlacer, OrderedNoAllocOpportunisticPruningStonePlacer), "placer", "StonePlacer implementation to use")
 
 	startingPoint := SingleOctantStartingPoints
 	flag.Var(enumflag.New(&startingPoint, EmptyStartingPoint, SingleOctantStartingPoints), "start", "Starting point for the search")
@@ -64,6 +74,14 @@ func main() {
 		separationSetConstructor = sets.NewBitArraySeparationSet
 	}
 
+	var prunerConstructor func(grid.Grid) pruner.Pruner
+	switch prunerImpl {
+	case RuntimePruner:
+		prunerConstructor = pruner.NewRuntimePruner
+	case PrecomputedPruner:
+		prunerConstructor = pruner.NewPrecomputedPruner
+	}
+
 	var stonePlacerConstructor placer.StonePlacerConstructor
 	switch stonePlacer {
 	case UnorderedStonePlacer:
@@ -75,6 +93,14 @@ func main() {
 			SeparationSetConstructor: separationSetConstructor}
 	case OrderedNoAllocStonePlacer:
 		stonePlacerConstructor = placer.OrderedNoAllocStonePlacerProvider{}
+	case OrderedNoAllocPruningStonePlacer:
+		stonePlacerConstructor = placer.OrderedPruningNoAllocStonePlacerProvider{
+			PrunerConstructor: prunerConstructor,
+		}
+	case OrderedNoAllocOpportunisticPruningStonePlacer:
+		stonePlacerConstructor = placer.OrderedOpportunisticPruningNoAllocStonePlacerProvider{
+			PrunerConstructor: prunerConstructor,
+		}
 	}
 
 	s := solver.SingleThreadedSolver{
@@ -94,14 +120,27 @@ func main() {
 	startTime := time.Now()
 	solution, err := s.Solve(g)
 	duration := time.Since(startTime)
+
+	if *memprofile != "" {
+        f, err := os.Create(*memprofile)
+        defer f.Close()
+        if err != nil {
+            log.Fatal(err)
+        }
+        err = pprof.WriteHeapProfile(f)
+        if err != nil {
+            log.Fatal(err)
+        }
+    }
+
 	if err != nil {
 		fmt.Printf("Search ended with no solution found for %+v in %v\n", g, duration)
 		return
 	}
 	solution.Sort()
-	if grid.IsValidSolution(g, solution) {
+	if err := grid.CheckValidSolution(g, solution); err == nil {
 		fmt.Printf("Solution found for %+v in %v: %v\n", g, duration, solution)
 	} else {
-		fmt.Printf("We found a solution for %+v in %v but it was invalid! %v", g, duration, solution)
+		fmt.Printf("We found a solution %v for %+v in %v but it was invalid! %s\n", solution, g, duration, err)
 	}
 }

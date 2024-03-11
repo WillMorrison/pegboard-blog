@@ -76,51 +76,51 @@ func TestSeparation(t *testing.T) {
 	}
 }
 
-func TestIsValidSolution(t *testing.T) {
+func TestCheckValidSolution(t *testing.T) {
 	type args struct {
 		g Grid
 		p Placements
 	}
 	tests := []struct {
-		name string
-		args args
-		want bool
+		name    string
+		args    args
+		wantErr bool
 	}{
 		{"valid 3x3",
 			args{
 				Grid{3},
 				Placements{Point{0, 0}, Point{1, 1}, Point{1, 2}},
 			},
-			true},
+			false},
 		{"invalid 3x3 not enough stones",
 			args{
 				Grid{3},
 				Placements{Point{0, 0}, Point{1, 1}},
 			},
-			false},
+			true},
 		{"invalid 3x3 out of bounds stone",
 			args{
 				Grid{3},
 				Placements{Point{0, 0}, Point{1, 1}, Point{0, 4}},
 			},
-			false},
+			true},
 		{"invalid 2x2 colliding stones",
 			args{
 				Grid{2},
 				Placements{Point{0, 0}, Point{0, 0}},
 			},
-			false},
+			true},
 		{"invalid 3x3 duplicate separations",
 			args{
 				Grid{3},
 				Placements{Point{0, 0}, Point{1, 1}, Point{0, 2}},
 			},
-			false},
+			true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsValidSolution(tt.args.g, tt.args.p); got != tt.want {
-				t.Errorf("IsValidSolution() = %v, want %v", got, tt.want)
+			if got := CheckValidSolution(tt.args.g, tt.args.p); tt.wantErr == (got == nil) {
+				t.Errorf("CheckValidSolution() error = %v, want %v", got, tt.wantErr)
 			}
 		})
 	}
@@ -180,7 +180,7 @@ func TestGrid_Iter(t *testing.T) {
 	g := Grid{2}
 	it := g.Iter()
 	var got Placements
-	for p, done := it.Next(); done == nil; p, done = it.Next() {
+	for p, ok := it.Next(); ok; p, ok = it.Next() {
 		got = append(got, p)
 	}
 	want := Placements{Point{0, 0}, Point{0, 1}, Point{1, 0}, Point{1, 1}}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/WillMorrison/pegboard-blog/grid"
 	"github.com/WillMorrison/pegboard-blog/placer"
-	"github.com/WillMorrison/pegboard-blog/sets"
 )
 
 func TestSingleOctantStartingPoints(t *testing.T) {
@@ -51,7 +50,7 @@ func TestSolver_Solve(t *testing.T) {
 		solver Solver
 	}{
 		{"SingleThreadedSolver",
-			SingleThreadedSolver{SingleOctantStartingPoints, placer.OrderedStonePlacerProvider{sets.NewMapSeparationSet}},
+			SingleThreadedSolver{SingleOctantStartingPoints, placer.OrderedNoAllocStonePlacerProvider{}},
 		},
 	}
 	for _, tt := range tests {
@@ -64,7 +63,7 @@ func TestSolver_Solve(t *testing.T) {
 					t.Fatalf("%+v.Solve() error = %v", tt.solver, err)
 					return
 				}
-				if !grid.IsValidSolution(g, got) {
+				if err := grid.CheckValidSolution(g, got); err != nil {
 					t.Errorf("%+v.Solve() = %v, want valid solution", tt.solver, got)
 				}
 			})
