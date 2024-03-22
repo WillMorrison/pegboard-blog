@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	UnorderedStonePlacer             = "unordered"
-	OrderedStonePlacer               = "ordered"
-	OrderedNoAllocStonePlacer        = "ordered_noalloc"
-	OrderedNoAllocPruningStonePlacer = "ordered_noalloc_pruning"
+	UnorderedStonePlacer                          = "unordered"
+	OrderedStonePlacer                            = "ordered"
+	OrderedNoAllocStonePlacer                     = "ordered_noalloc"
+	OrderedNoAllocPruningStonePlacer              = "ordered_noalloc_pruning"
 	OrderedNoAllocOpportunisticPruningStonePlacer = "ordered_noalloc_opportunistic_pruning"
 
 	EmptyStartingPoint         = "empty_grid"
@@ -31,6 +31,9 @@ const (
 
 	RuntimePruner     = "runtime"
 	PrecomputedPruner = "precomputed"
+
+	SingleThreadedSolver = "single_thread"
+	AsyncSolver          = "async"
 )
 
 func main() {
@@ -50,6 +53,9 @@ func main() {
 
 	startingPoint := SingleOctantStartingPoints
 	flag.Var(enumflag.New(&startingPoint, EmptyStartingPoint, SingleOctantStartingPoints), "start", "Starting point for the search")
+
+	solverImpl := AsyncSolver
+	flag.Var(enumflag.New(&solverImpl, SingleThreadedSolver, AsyncSolver), "solver", "Solver implementation to use")
 
 	flag.Parse()
 
@@ -103,9 +109,18 @@ func main() {
 		}
 	}
 
-	s := solver.SingleThreadedSolver{
-		StartingPointsProvider: startingPointsProvider,
-		StonePlacerConstructor: stonePlacerConstructor,
+	var s solver.Solver
+	switch solverImpl {
+	case SingleThreadedSolver:
+		s = solver.SingleThreadedSolver{
+			StartingPointsProvider: startingPointsProvider,
+			StonePlacerConstructor: stonePlacerConstructor,
+		}
+	case AsyncSolver:
+		s = solver.AsyncSolver{
+			StartingPointsProvider: startingPointsProvider,
+			StonePlacerConstructor: stonePlacerConstructor,
+		}
 	}
 
 	if *cpuprofile != "" {
@@ -122,16 +137,16 @@ func main() {
 	duration := time.Since(startTime)
 
 	if *memprofile != "" {
-        f, err := os.Create(*memprofile)
-        defer f.Close()
-        if err != nil {
-            log.Fatal(err)
-        }
-        err = pprof.WriteHeapProfile(f)
-        if err != nil {
-            log.Fatal(err)
-        }
-    }
+		f, err := os.Create(*memprofile)
+		defer f.Close()
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = pprof.WriteHeapProfile(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	if err != nil {
 		fmt.Printf("Search ended with no solution found for %+v in %v\n", g, duration)

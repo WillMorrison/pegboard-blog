@@ -2,6 +2,7 @@ package solver
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/WillMorrison/pegboard-blog/grid"
 	"github.com/WillMorrison/pegboard-blog/placer"
@@ -66,14 +67,76 @@ func (s SingleThreadedSolver) dfs(sp placer.StonePlacer) (placer.StonePlacer, er
 	return sp, errNoSolutions
 }
 
-func (sts SingleThreadedSolver) Solve(g grid.Grid) (grid.Placements, error) {
-	for _, sp := range sts.StartingPointsProvider(g) {
-		start := sts.StonePlacerConstructor.New(g, sp)
-		solution, err := sts.dfs(start)
+func (s SingleThreadedSolver) Solve(g grid.Grid) (grid.Placements, error) {
+	for _, sp := range s.StartingPointsProvider(g) {
+		start := s.StonePlacerConstructor.New(g, sp)
+		solution, err := s.dfs(start)
 		if err != nil {
 			continue
 		}
 		return solution.Placements(), nil
+	}
+	return nil, errNoSolutions
+}
+
+type AsyncSolver struct {
+	StartingPointsProvider StartingPointsProvider
+	StonePlacerConstructor placer.StonePlacerConstructor
+}
+
+// dfs implements depth first search, and returns any found solutions on the solution channel.
+// If the done channel is closed, the search is aborted
+func (s AsyncSolver) dfs(sp placer.StonePlacer, solution chan<- grid.Placements, done <-chan struct{}) {
+	for !sp.Done() {
+		select {
+		// If done channel is closed, abort search
+		case <-done:
+			return
+		default:
+		}
+		nextState, err := sp.Place()
+		if err != nil {
+			continue
+		}
+		if len(nextState.Placements()) == int(nextState.Grid().Size) {
+			solution <- nextState.Placements()
+			return
+		}
+		s.dfs(nextState, solution, done)
+	}
+}
+
+func (s AsyncSolver) Solve(g grid.Grid) (grid.Placements, error) {
+	wg := sync.WaitGroup{}
+	done := make(chan struct{})
+	solutions := make(chan grid.Placements, 1)
+	for _, sp := range s.StartingPointsProvider(g) {
+		start := s.StonePlacerConstructor.New(g, sp)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.dfs(start, solutions, done)
+
+		}()
+	}
+	go func() {
+		// If wg.Wait returns, all dfs searches should have completed.
+		wg.Wait()
+		select {
+		// They might have completed if one found a solution, in which case just abort
+		case <-done:
+			return
+		// Or none might have found a solution, in which case send a nil to the solutions channel to unblock Solve's receiver
+		// Keep in mind we might have returned from Wait before Solve closed done, so send nil in a nonblocking manner.
+		case solutions <- nil:
+		default:
+		}
+	}()
+
+	solution := <-solutions
+	close(done)
+	if solution != nil {
+		return solution, nil
 	}
 	return nil, errNoSolutions
 }
