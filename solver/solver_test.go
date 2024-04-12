@@ -52,6 +52,12 @@ func TestSolver_Solve(t *testing.T) {
 		{"SingleThreadedSolver",
 			SingleThreadedSolver{SingleOctantStartingPoints, placer.OrderedNoAllocStonePlacerProvider{}},
 		},
+		{"AsyncSolver",
+			AsyncSolver{SingleOctantStartingPoints, placer.OrderedNoAllocStonePlacerProvider{}},
+		},
+		{"AsyncSplittingSolver",
+			AsyncSplittingSolver{SingleOctantStartingPoints, placer.OrderedNoAllocStonePlacerProvider{}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

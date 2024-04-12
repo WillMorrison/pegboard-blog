@@ -35,6 +35,7 @@ const (
 
 	SingleThreadedSolver = "single_thread"
 	AsyncSolver          = "async"
+	AsyncSplittingSolver = "async_splitting"
 )
 
 func main() {
@@ -57,7 +58,7 @@ func main() {
 	flag.Var(enumflag.New(&startingPoint, EmptyStartingPoint, SingleOctantStartingPoints), "start", "Starting point for the search")
 
 	solverImpl := AsyncSolver
-	flag.Var(enumflag.New(&solverImpl, SingleThreadedSolver, AsyncSolver), "solver", "Solver implementation to use")
+	flag.Var(enumflag.New(&solverImpl, SingleThreadedSolver, AsyncSolver, AsyncSplittingSolver), "solver", "Solver implementation to use")
 
 	flag.Parse()
 
@@ -120,6 +121,11 @@ func main() {
 		}
 	case AsyncSolver:
 		s = solver.AsyncSolver{
+			StartingPointsProvider: startingPointsProvider,
+			StonePlacerConstructor: stonePlacerConstructor,
+		}
+	case AsyncSplittingSolver:
+		s = solver.AsyncSplittingSolver{
 			StartingPointsProvider: startingPointsProvider,
 			StonePlacerConstructor: stonePlacerConstructor,
 		}

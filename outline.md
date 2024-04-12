@@ -30,7 +30,9 @@ We want to explore all of these, so there will be multiple versions, interfaces 
 2. We can save some more time by eliminating some searching of reflections and rotations by constraining the first stone placed to one octant. 
 3. Now we look at a cpu profile. Most of the time is spent doing set operations. Maps are easy to use as sets, but we have constrained set sizes and elements, so we can create a custom bitarray-based set to speed things up even more.
 4. Now allocating memory for new objects takes up a large chunk of time (for garbage collection). Preallocating all memory before the search means we don't need to do garbage collection.
-5. At this point, checking for separation set membership is taking the most time. We try to avoid doing more work (placement attempts) by keeping a set of places we know stones can't go and skipping placement attempts there.
+5. At this point, checking for separation set membership is taking the most time. We try to avoid doing more work (placement attempts) by keeping a set of places we know stones can't go and skipping placement attempts there.  Even after much work, the pruning implementations have so much overhead for keeping track of the restricted placements that it turns out to be faster to just try and fail.
+6. Now we start looking at taking advantage of multiple CPUs. It's reasonably quick to write an implementation that starts multiple searches in parallel, starting each one with a single stone placed. This doesn't give us the expected speedup though, as it turns out that some searches end well before others. By the end of the run, only one CPU is working on the problem while the rest sit idle.
+7. By enabling each thread to delegate a section of its work to another, we can keep multiple threads busy right up to the end of 
 
 ## Profiling and tracing
 
