@@ -2,3 +2,5 @@ github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/hashicorp/packer v1.10.1 h1:C4wtMDJ+tVM1D2UpaHK3g2BSABfNljWe6n5ACdyrf+g=
 github.com/hashicorp/packer v1.10.1/go.mod h1:XyBUdAdAJRY+4fGY+LsXJaoVmp7yxI7spV1jfSqbaKI=
+github.com/hashicorp/packer v1.10.2 h1:40LBOt1R8coR7qDsK9TN+fuMq0j4jfOV0q+uMde5y3c=
+github.com/hashicorp/packer v1.10.2/go.mod h1:3MLAHt1fLhK7YM/t64KD4HzT2ZfOUDkBuCOxivpmwPU=
