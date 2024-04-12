@@ -153,16 +153,37 @@ type SeparationSetIterator struct {
 
 func NewSeparationSetIterator(ss SeparationSet) SeparationSetIterator {
 	ssi := SeparationSetIterator{SeparationSet: ss, maxSep: grid.MaxSeparation}
-	for ssi.sep++; ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.sep++ {
+	for ssi.advance(); ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.advance() {
 	}
 	return ssi
 }
 
 func NewSeparationSetIteratorForGrid(ss SeparationSet, g grid.Grid) SeparationSetIterator {
 	ssi := SeparationSetIterator{SeparationSet: ss, maxSep: uint16(g.Size-1) * uint16(g.Size-1) * 2}
-	for ssi.sep++; ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.sep++ {
+	for ssi.advance(); ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.advance() {
 	}
 	return ssi
+}
+
+// advance increases the sep value by at least 1, guaranteeing that it won't jump over any values that are in the set
+func (ssi *SeparationSetIterator) advance() {
+	ssi.sep++
+
+	// Bit arrays offer a chance for optimization; we can check for multiple memberships at once by treating it as an int and comparing to 0.
+	// This lets us skip over multiple separations and decrease the number of loop iterations needed to find the next set element.
+	//
+	// The choice of size of int we use can be changed (e.g. we could check 8, 16, 32, or 64 elements at a time) and finding the optimal value
+	// is a case of trial and error. Intuitively, most of the search will be spent trying to place the last few stones, therefore the separation set
+	// will have lots of elements. However, these separations are not uniformly distributed because of the sum of two squares used to create them.
+	// The higher separation values will be sparser than the lower separation values. Taking advantage of these gaps can speed up the iteration.
+	//
+	// Experimentally, 8 bit ints have been found to be optimal for speeding up searches on large grids. This lets us take advantage of smaller gaps.
+	switch t := ssi.SeparationSet.(type) {
+	case *BitArraySeparationSet:
+		if *(*uint8)(unsafe.Pointer(uintptr(unsafe.Pointer(t)) + uintptr(ssi.sep>>3))) == 0 { // if (*[48]uint8)(t)[ssi.sep>>3] == 0
+			ssi.sep = (ssi.sep + 8) &^ 0x7
+		}
+	}
 }
 
 func (ssi *SeparationSetIterator) Next() (uint16, bool) {
@@ -170,7 +191,7 @@ func (ssi *SeparationSetIterator) Next() (uint16, bool) {
 		return 0, false
 	}
 	ret := ssi.sep
-	for ssi.sep++; ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.sep++ {
+	for ssi.advance(); ssi.sep < ssi.maxSep+1 && !ssi.SeparationSet.Has(ssi.sep); ssi.advance() {
 	}
 	return ret, true
 }

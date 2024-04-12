@@ -196,6 +196,29 @@ func Benchmark_BitArraySeparationSet(b *testing.B) {
 	}
 }
 
+func Benchmark_BitArraySeparationSet_Iteration(b *testing.B) {
+	// [A0 A1 A3 A7 B10 C6 F0 J9 L1 N3 N13]: 11 stones with unique separations on a 14x14 grid
+	ss := NewBitArraySeparationSet(grid.Placements{
+		grid.Point{0, 0},
+		grid.Point{0, 1},
+		grid.Point{0, 3},
+		grid.Point{0, 7},
+		grid.Point{1, 10},
+		grid.Point{2, 6},
+		grid.Point{5, 0},
+		grid.Point{9, 9},
+		grid.Point{11, 1},
+		grid.Point{13, 3},
+		grid.Point{13, 13},
+	})
+	for i := 0; i < b.N; i++ {
+		iter := NewSeparationSetIterator(ss)
+		for sep, ok := iter.Next(); ok; sep, ok = iter.Next() {
+			_ = sep
+		}
+	}
+}
+
 func Test_bitSeparationSet_Clone_mapSeparationSet(t *testing.T) {
 	sep1 := uint16(4)
 	sep2 := uint16(6)
@@ -206,6 +229,42 @@ func Test_bitSeparationSet_Clone_mapSeparationSet(t *testing.T) {
 	ss2.Clone(ss1)
 	if diff := cmp.Diff(ss1.Elements(), ss2.Elements()); diff != "" {
 		t.Errorf("bitSeparationset.Clone(mapSeparationSet).Elements() had diff %s", diff)
+	}
+}
+
+func Test_bitSeparationSet_Iteration(t *testing.T) {
+	var got []uint16
+	ss := NewBitArraySeparationSet(nil)
+	ss.Add(5)  // Middle of a uint8
+	ss.Add(15) // End of a uint8 before a 0 uint8
+	ss.Add(56) // Beginning of a uint8 after a 0 uint8
+	ss.Add(63)
+	ss.Add(64) // Beginning of a uint8 after the end of previous one
+	it := NewSeparationSetIterator(ss)
+	for sep, ok := it.Next(); ok; sep, ok = it.Next() {
+		got = append(got, sep)
+	}
+	want := []uint16{5, 15, 56, 63, 64}
+	if diff := cmp.Diff(got, want, cmpopts.SortSlices(func(a, b uint16) bool { return a < b })); diff != "" {
+		t.Errorf("Iter() had diff: %s", diff)
+	}
+}
+
+func Test_bitSeparationSet_AdvanceCount(t *testing.T) {
+	var got []uint16
+	ss := NewBitArraySeparationSet(nil)
+	ss.Add(5)
+	it := SeparationSetIterator{SeparationSet: ss, maxSep: 20}
+	// This loop mirrors the implementation of Next(), but doesn't stop if a separation is in the set
+	for it.sep <= it.maxSep {
+		got = append(got, it.sep)
+		it.advance()
+	}
+	got = append(got, it.sep)
+
+	want := []uint16{0, 1, 2, 3, 4, 5, 6, 7 /* Skip 2nd byte */, 16 /* Skip 3rd byte*/, 24 /* Above maxSep */}
+	if diff := cmp.Diff(got, want); diff != "" {
+		t.Errorf("advance() visited elements had diff (-got, +want): %s", diff)
 	}
 }
 
