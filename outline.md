@@ -31,3 +31,27 @@ We want to explore all of these, so there will be multiple versions, interfaces 
 3. Now we look at a cpu profile. Most of the time is spent doing set operations. Maps are easy to use as sets, but we have constrained set sizes and elements, so we can create a custom bitarray-based set to speed things up even more.
 4. Now allocating memory for new objects takes up a large chunk of time (for garbage collection). Preallocating all memory before the search means we don't need to do garbage collection.
 5. At this point, checking for separation set membership is taking the most time. We try to avoid doing more work (placement attempts) by keeping a set of places we know stones can't go and skipping placement attempts there.
+
+## Profiling and tracing
+
+There are several flags implemented that let you easily profile and trace.
+
+The `cpuprofile` flag generates a CPU profile, useful for figuring out which lines or functions account for the majority of the procesing time.
+```
+go build main.go
+./main --size=8 -cpuprofile=/tmp/cpu.prof
+go tool pprof -http localhost:8888 main /tmp/cpu.prof
+```
+
+The `memprofile` flag generates a heap profile, useful for figuring out which lines or functions are allocating memory.
+```
+go build main.go
+./main --size=8 -memprofile=/tmp/mem.prof
+go tool pprof -http localhost:8888 -sample_index=alloc_objects main /tmp/mem.prof
+```
+
+The `trace` flag provides a way to capture the behaviour of the goroutine scheduler. This is useful when determining if all threads are being used fully.
+```
+go run . --size=8 -trace=/tmp/trace.out
+go tool trace /tmp/trace.out
+```

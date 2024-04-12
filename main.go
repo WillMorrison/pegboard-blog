@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"runtime/pprof"
+	"runtime/trace"
 	"time"
 
 	"github.com/WillMorrison/pegboard-blog/grid"
@@ -41,6 +42,7 @@ func main() {
 
 	var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 	var memprofile = flag.String("memprofile", "", "write memory profile to this file")
+	var tracefile = flag.String("trace", "", "write trace to this file")
 
 	separationSet := BitSeparationSet
 	flag.Var(enumflag.New(&separationSet, MapSeparationSet, BitSeparationSet), "separation_set", "SeparationSet implementation to use")
@@ -48,7 +50,7 @@ func main() {
 	prunerImpl := PrecomputedPruner
 	flag.Var(enumflag.New(&prunerImpl, RuntimePruner, PrecomputedPruner), "pruner", "Pruner implementation to use")
 
-	stonePlacer := OrderedStonePlacer
+	stonePlacer := OrderedNoAllocStonePlacer
 	flag.Var(enumflag.New(&stonePlacer, UnorderedStonePlacer, OrderedStonePlacer, OrderedNoAllocStonePlacer, OrderedNoAllocPruningStonePlacer, OrderedNoAllocOpportunisticPruningStonePlacer), "placer", "StonePlacer implementation to use")
 
 	startingPoint := SingleOctantStartingPoints
@@ -130,6 +132,15 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *tracefile != "" {
+		f, err := os.Create(*tracefile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		trace.Start(f)
+		defer trace.Stop()
 	}
 
 	startTime := time.Now()
