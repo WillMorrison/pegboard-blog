@@ -147,7 +147,7 @@ func (spp UnorderedStonePlacerProvider) New(g grid.Grid, p grid.Placements) Ston
 type orderedNoAllocStonePlacer struct {
 	grid        grid.Grid
 	stones      grid.Placements
-	separations sets.SeparationSet
+	separations sets.BitArraySeparationSet
 	nextStone   grid.Point
 	nextPlacer  *orderedNoAllocStonePlacer
 }
@@ -156,7 +156,7 @@ func (sp *orderedNoAllocStonePlacer) Place() (StonePlacer, error) {
 	defer func() { sp.nextStone = grid.AdvanceStone(sp.grid, sp.nextStone) }()
 
 	// Check that placing the next stone doesn't result in duplicate separations
-	sp.nextPlacer.separations.Clone(sp.separations)
+	sp.nextPlacer.separations.Clone(&sp.separations)
 	for _, p := range sp.stones {
 		s := grid.Separation(sp.nextStone, p)
 		if sp.nextPlacer.separations.Has(s) {
@@ -192,7 +192,7 @@ func (spp OrderedNoAllocStonePlacerProvider) New(g grid.Grid, p grid.Placements)
 		placers[i] = orderedNoAllocStonePlacer{
 			grid:        g,
 			stones:      make(grid.Placements, i),
-			separations: sets.NewBitArraySeparationSet(nil), // This implementation's Clone() shouldn't allocate
+			separations: sets.BitArraySeparationSet{}, // This implementation's Clone() shouldn't allocate
 			nextStone:   grid.Point{},
 		}
 		if i+1 < len(placers) {
